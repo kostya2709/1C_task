@@ -4,6 +4,9 @@
 #include <algorithm>
 #include <fstream>
 #include <list>
+#include <unordered_map>
+#include <unordered_set>
+#include <queue>
 
 
 class Deck;
@@ -69,14 +72,122 @@ public:
     bool is_empty() {
         return lowest_opened_idx == -1;
     }
+
+    bool operator==(const Deck& other) const {
+        if (cards == other.cards &&
+            lowest_opened_card == other.lowest_opened_card &&
+            highest_opened_card == other.highest_opened_card &&
+            lowest_opened_idx == other.lowest_opened_idx &&
+            highest_opened_idx == other.highest_opened_idx)
+            return true;
+        return false;
+    }
+ 
+    bool is_completed() {
+        for (auto i : cards) {
+            if (lowest_opened_card != 0 or highest_opened_card != dif_values - 1)
+                return false;
+        }
+
+        return true;
+    }
+
+    friend class State;
 };
+
+
+
+struct deck_hash {
+    size_t operator()(const Deck& deck) {
+        size_t result = 0;
+        std::hash<int> hasher;
+        for (auto card : deck.cards) {
+            result ^= hasher(card);
+        }
+        result ^= hasher(deck.lowest_opened_card);
+        result ^= hasher(deck.highest_opened_card);
+        result ^= hasher(deck.lowest_opened_idx);
+        result ^= hasher(deck.highest_opened_idx);
+        return result;
+    }
+};
+
+void read(field& cards);
 
 
 class State {
+public:
+    State() : cards(field_deck_num, all_cards) {
+        read(cards);
+    }
+
+private:
     field cards;
+
+    State(const State& old_state) {
+        cards = old_state.cards;
+    }
+
+    friend bool possible_win(State& cur_state, std::queue<State*>& states);
 };
 
+bool possible_win_caller() {
 
+    std::queue<State*> states;
+    State initial_state;
+
+    bool result = 0;
+
+    possible_win(initial_state, states);
+    while (states.empty() == false) {
+        State* cur_state = states.front();
+        result = possible_win(*cur_state, states);
+        if (result == true)
+            return true;
+        states.pop();
+    }
+
+    return result;
+
+}
+
+bool possible_win(State& cur_state, std::queue<State*>& states) {
+
+    int counter = 0;
+    for (auto& deck : cur_state.cards) {
+        if (deck.is_completed() == false)
+            break;
+        else 
+            ++counter;
+    }
+    if (counter == field_deck_num)
+        return true;
+        
+
+    vector<int> highest_cards(field_deck_num);
+    for (int i = 0; i < field_deck_num; ++i) {
+        highest_cards[i] = cur_state.cards[i].highest_opened_card;
+    }
+
+
+    for (int i = 0; i < field_deck_num; ++i) {
+        for (int deck_num = 0; deck_num < field_deck_num; ++deck_num) {
+
+            if (i == deck_num)
+                continue;
+
+            if (cur_state.cards[deck_num].highest_opened_card >= cur_state.cards[i].lowest_opened_card && 
+                cur_state.cards[deck_num].highest_opened_card <= cur_state.cards[i].highest_opened_card) {
+                
+                State* new_state = new State(cur_state);
+                
+                states.push(new_state);
+                new_state->cards[deck_num].insert(new_state->cards[i],
+                    new_state->cards[i].highest_opened_card - new_state->cards[deck_num].highest_opened_card - 1);
+            }
+        }
+    }
+}
 
 
 void create_random_data() {
@@ -128,7 +239,5 @@ void read(field& cards) {
 }
 
 int main() {
-    create_random_data();
-    vector<Deck> cards(field_deck_num, all_cards);
-    read(cards);
+    std::cout << possible_win_caller();
 }
